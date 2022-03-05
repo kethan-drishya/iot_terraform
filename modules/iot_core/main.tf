@@ -48,6 +48,7 @@ EOF
 
 # Create an aws iot certificate
 resource "aws_iot_certificate" "test_cert" {
+  csr    = file("csr.pem")
   active = true
 }
 
@@ -104,3 +105,50 @@ data "aws_iot_endpoint" "endpoint" {
 output "iot_endpoint" {
   value = data.aws_iot_endpoint.endpoint.endpoint_address
 }
+
+# resource "aws_iot_certificate" "cert" {
+#   csr    = file("csr.pem")
+#   active = true
+# }
+
+resource "aws_iot_thing_principal_attachment" "att" {
+  principal = aws_iot_certificate.test_cert.arn
+  thing     = aws_iot_thing.example.name
+}
+
+resource "aws_acmpca_certificate" "example" {
+  certificate_authority_arn   = aws_acmpca_certificate_authority.example.arn
+  certificate_signing_request = tls_cert_request.csr.cert_request_pem
+  signing_algorithm           = "SHA256WITHRSA"
+  validity {
+    type  = "YEARS"
+    value = 1
+  }
+}
+
+resource "aws_acmpca_certificate_authority" "example" {
+  private_certificate_configuration {
+    key_algorithm     = "RSA_4096"
+    signing_algorithm = "SHA512WITHRSA"
+
+    subject {
+      common_name = "example.com"
+    }
+  }
+
+  permanent_deletion_time_in_days = 7
+}
+
+resource "tls_private_key" "key" {
+  algorithm = "RSA"
+}
+
+resource "tls_cert_request" "csr" {
+  key_algorithm   = "RSA"
+  private_key_pem = tls_private_key.key.private_key_pem
+
+  subject {
+    common_name = "example"
+  }
+}
+
